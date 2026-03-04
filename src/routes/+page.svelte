@@ -401,7 +401,7 @@
 	});
 </script>
 
-<div class="sketch-pattern flex h-[100dvh] overflow-hidden text-[#111111]">
+<div class="sketch-pattern flex h-[100dvh] flex-col overflow-hidden text-[#111111]">
 	<main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-hidden px-6 py-6">
 		{#if !hasSupabaseConfig}
 			<section class="sketchy-border bg-[#fff0f0] p-4 text-2xl">
