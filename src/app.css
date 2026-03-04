@@ -13,8 +13,6 @@
 		min-height: 100%;
 		background: #f4f4f4;
 		color: #111111;
-		font-family: 'Caveat', 'Segoe UI', sans-serif;
-		font-size: 1.25rem;
 	}
 
 	button,
@@ -31,23 +29,42 @@
 
 @layer components {
 	.sketch-pattern {
-		background-image: repeating-linear-gradient(
-			45deg,
-			transparent,
-			transparent 10px,
-			rgba(0, 0, 0, 0.02) 10px,
-			rgba(0, 0, 0, 0.02) 20px
-		);
+		background-image:
+			radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.07) 0.6px, transparent 0),
+			repeating-linear-gradient(
+				45deg,
+				transparent,
+				transparent 10px,
+				rgba(0, 0, 0, 0.02) 10px,
+				rgba(0, 0, 0, 0.02) 20px
+			),
+			linear-gradient(180deg, #f7f7f7, #f0f0f0);
+		background-size:
+			8px 8px,
+			auto,
+			auto;
 	}
 
 	.sketchy-border {
 		border: 2px solid #202020;
 		border-radius: 2px 255px 3px 25px / 255px 5px 225px 3px;
+		position: relative;
 	}
 
 	.sketchy-border-alt {
 		border: 2px solid #202020;
 		border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+		position: relative;
+	}
+
+	.sketchy-border::before,
+	.sketchy-border-alt::before {
+		content: '';
+		position: absolute;
+		inset: 2px;
+		border: 1px solid rgba(0, 0, 0, 0.28);
+		border-radius: inherit;
+		pointer-events: none;
 	}
 
 	.sketchy-border-bottom {
@@ -66,22 +83,26 @@
 		background: #ffffff;
 		max-width: min(42rem, 80vw);
 		padding: 0.85rem 1rem;
+		transform: rotate(-0.25deg);
+		background-image: linear-gradient(180deg, #fff, #fbfbfb);
 	}
 
-	.avatar-shell {
-		width: 2.25rem;
-		height: 2.25rem;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: #efefef;
-		color: #6b7280;
-		flex-shrink: 0;
+	.message-row.is-own .message-shell {
+		transform: rotate(0.35deg);
+	}
+
+	.chat-stream .message-row:nth-child(3n) .message-shell {
+		transform: rotate(-0.5deg);
+	}
+
+	.chat-stream .message-row.is-own:nth-child(2n) .message-shell {
+		transform: rotate(0.6deg);
 	}
 
 	.input-shell {
 		background: #ffffff;
 		padding: 0.25rem;
+		background-image: linear-gradient(180deg, #ffffff, #f8f8f8);
 	}
 
 	.send-shell {
@@ -91,16 +112,32 @@
 		align-items: center;
 		justify-content: center;
 		background: #ffffff;
+		transform: rotate(-1.5deg);
+		transition: transform 120ms ease;
+	}
+
+	.send-shell:hover:not(:disabled) {
+		transform: rotate(0deg) translateY(-1px);
+	}
+
+	.send-shell:active:not(:disabled) {
+		transform: rotate(0deg) translateY(0);
 	}
 
 	.markdown-body {
 		line-height: 1.5;
 		word-break: break-word;
-		font-size: 1.5rem;
+		font-size: 1rem;
 	}
 
 	.markdown-body :where(p, ul, ol, pre, blockquote, table, h1, h2, h3, h4, h5, h6) {
 		margin: 0.35rem 0;
+	}
+
+	.markdown-body hr {
+		border: 0;
+		border-top: 1px solid #111111;
+		margin: 0.6rem 0;
 	}
 
 	.markdown-body :where(h1, h2, h3, h4, h5, h6) {
@@ -127,6 +164,67 @@
 
 	.markdown-body :where(ul, ol) {
 		padding-left: 1.5rem;
+	}
+
+	.markdown-body ul:has(input[type='checkbox']) {
+		list-style: none;
+		padding-left: 0;
+	}
+
+	.markdown-body li:has(input[type='checkbox']) {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.45rem;
+	}
+
+	.markdown-body input[type='checkbox'] {
+		margin-top: 0.2rem;
+		accent-color: #111111;
+	}
+
+	.markdown-body a {
+		text-decoration: underline;
+		text-underline-offset: 2px;
+		color: #0f3d8f;
+	}
+
+	.markdown-body mark {
+		background: #fff28a;
+		color: #111111;
+		padding: 0 0.15rem;
+	}
+
+	.markdown-body u {
+		text-decoration-thickness: 2px;
+	}
+
+	.markdown-body .md-admonition {
+		border: 1px solid #111111;
+		padding: 0.5rem 0.65rem;
+		margin: 0.5rem 0;
+		background: #f8f8f8;
+	}
+
+	.markdown-body .md-admonition-title {
+		margin: 0 0 0.35rem;
+		font-weight: 700;
+	}
+
+	.markdown-body .md-admonition-note {
+		background: #eef4ff;
+	}
+
+	.markdown-body .md-admonition-tip {
+		background: #edf9ef;
+	}
+
+	.markdown-body .md-admonition-important {
+		background: #fff4e6;
+	}
+
+	.markdown-body .md-admonition-warning,
+	.markdown-body .md-admonition-caution {
+		background: #ffecec;
 	}
 
 	.markdown-body :where(pre, code) {
@@ -156,5 +254,6 @@
 	.markdown-body :where(blockquote) {
 		border-left: 1px solid #111111;
 		padding-left: 0.5rem;
+		color: #333333;
 	}
 }

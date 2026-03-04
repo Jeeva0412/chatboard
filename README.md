@@ -44,6 +44,8 @@ Run `supabase/schema.sql` in Supabase SQL editor. It creates:
 - `enforce_message_cap()` trigger function
 - `AFTER INSERT` trigger that retains only the newest 40 rows
 
+If your table already existed before this update, run `supabase/schema.sql` again to add `sender_id` for per-session left/right message ownership.
+
 ## Realtime flow
 
 On submit, the client:

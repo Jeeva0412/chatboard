@@ -1,8 +1,13 @@
 create table if not exists public.chat_messages (
 	id bigint generated always as identity primary key,
 	content text not null check (char_length(content) > 0),
+	sender_id text not null,
 	created_at timestamptz not null default now()
 );
+
+alter table public.chat_messages add column if not exists sender_id text;
+update public.chat_messages set sender_id = 'legacy' where sender_id is null;
+alter table public.chat_messages alter column sender_id set not null;
 
 alter table public.chat_messages enable row level security;
 
@@ -28,11 +33,11 @@ begin
 	where id in (
 		select id
 		from public.chat_messages
-		order by created_at asc, id asc
+		order by created_at desc, id desc
 		offset 40
 	);
 
-	return new;
+	return null;
 end;
 $$;
 
@@ -41,3 +46,11 @@ create trigger trg_enforce_message_cap
 after insert on public.chat_messages
 for each statement
 execute function public.enforce_message_cap();
+
+delete from public.chat_messages
+where id in (
+	select id
+	from public.chat_messages
+	order by created_at desc, id desc
+	offset 40
+);
