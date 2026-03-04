@@ -1,5 +1,13 @@
 node_modules
 
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
 # Output
 .output
 .vercel
@@ -7,10 +15,25 @@ node_modules
 .wrangler
 /.svelte-kit
 /build
+/dist
+
+# Test and coverage
+/coverage
+
+# Caches
+.cache
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
 
 # OS
 .DS_Store
 Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
 
 # Env
 .env
