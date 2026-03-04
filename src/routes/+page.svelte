@@ -55,6 +55,8 @@
 	let isRealtimeReady = false;
 	let messagesContainer: HTMLDivElement | null = null;
 	let composer: HTMLTextAreaElement | null = null;
+	let resizeRafId: number | null = null;
+    const seenMessageIds = new Set<string>();
 
 	const maxComposerHeight = 176;
 	const nearBottomThreshold = 72;
@@ -67,6 +69,14 @@
 		}
 
 		messagesContainer.scrollTop = messagesContainer.scrollHeight;
+	};
+
+	const scrollMessagesToBottomSoon = () => {
+		void tick().then(() => {
+			requestAnimationFrame(() => {
+				scrollMessagesToBottom();
+			});
+		});
 	};
 
 	const isNearBottom = () => {
@@ -90,6 +100,17 @@
 		composer.style.overflowY = composer.scrollHeight > maxComposerHeight ? 'auto' : 'hidden';
 	};
 
+	const scheduleComposerResize = () => {
+		if (resizeRafId !== null) {
+			cancelAnimationFrame(resizeRafId);
+		}
+
+		resizeRafId = requestAnimationFrame(() => {
+			resizeComposer();
+			resizeRafId = null;
+		});
+	};
+
 	const toUiMessage = (message: {
 		id: string;
 		content: string;
@@ -106,10 +127,27 @@
 	};
 
 	const appendMessage = (message: UiMessage) => {
+		if (seenMessageIds.has(message.id)) {
+			return;
+		}
+
+		seenMessageIds.add(message.id);
+		if (seenMessageIds.size > 120) {
+			const overflow = seenMessageIds.size - 120;
+			let removed = 0;
+			for (const id of seenMessageIds) {
+				seenMessageIds.delete(id);
+				removed += 1;
+				if (removed >= overflow) {
+					break;
+				}
+			}
+		}
+
 		const shouldStickToBottom = isNearBottom();
-		messages = [...messages, message].slice(-40);
-		if (shouldStickToBottom) {
-			void tick().then(scrollMessagesToBottom);
+		messages = messages.length >= 40 ? [...messages.slice(-39), message] : [...messages, message];
+		if (message.senderId === sessionUserId || shouldStickToBottom) {
+			scrollMessagesToBottomSoon();
 		}
 	};
 
@@ -122,7 +160,8 @@
 		const { data, error: loadError } = await supabase
 			.from('chat_messages')
 			.select('id, content, created_at, sender_id')
-			.order('created_at', { ascending: true })
+			.order('created_at', { ascending: false })
+			.order('id', { ascending: false })
 			.limit(40);
 
 		if (loadError) {
@@ -131,7 +170,9 @@
 			return;
 		}
 
-		messages = (data as DatabaseMessage[]).map((entry) =>
+		messages = (data as DatabaseMessage[])
+			.reverse()
+			.map((entry) =>
 			toUiMessage({
 				id: String(entry.id),
 				content: entry.content,
@@ -140,9 +181,13 @@
 			})
 		);
 
+		seenMessageIds.clear();
+		for (const message of messages) {
+			seenMessageIds.add(message.id);
+		}
+
 		loading = false;
-		await tick();
-		scrollMessagesToBottom();
+		scrollMessagesToBottomSoon();
 	};
 
 	const connectRealtime = async () => {
@@ -226,9 +271,16 @@
 
 		draft = '';
 		sending = false;
-		await tick();
 		resizeComposer();
-		scrollMessagesToBottom();
+		scrollMessagesToBottomSoon();
+	};
+
+	const copyMessage = async (content: string) => {
+		try {
+			await navigator.clipboard.writeText(content);
+		} catch {
+			error = 'Failed to copy message.';
+		}
 	};
 
 	onMount(async () => {
@@ -238,6 +290,10 @@
 	});
 
 	onDestroy(() => {
+		if (resizeRafId !== null) {
+			cancelAnimationFrame(resizeRafId);
+		}
+
 		if (channel && supabase) {
 			isRealtimeReady = false;
 			void supabase.removeChannel(channel);
@@ -266,8 +322,17 @@
 							class={`message-row flex items-start gap-3 ${message.senderId === sessionUserId ? 'is-own flex-row-reverse' : ''}`}
 						>
 							<article
-								class={`message-shell ${message.senderId === sessionUserId ? 'sketchy-border-alt bg-[#efefef]' : 'sketchy-border'}`}
+								class={`message-shell message-copy-wrap ${message.senderId === sessionUserId ? 'sketchy-border-alt bg-[#efefef]' : 'sketchy-border'}`}
 							>
+								<button
+									type="button"
+									class="copy-btn"
+									onclick={() => {
+										void copyMessage(message.content);
+									}}
+								>
+									Copy
+								</button>
 								<div class="markdown-body" aria-label="chat message markdown output">
 									{@html message.safeHtml}
 								</div>
@@ -295,7 +360,7 @@
 					rows="1"
 					placeholder="Type your message..."
 					class="w-full resize-none border-none bg-transparent px-3 py-2 text-xl leading-6 outline-none"
-					oninput={resizeComposer}
+					oninput={scheduleComposerResize}
 					onkeydown={(event) => {
 						if (event.key === 'Enter' && event.ctrlKey) {
 							event.preventDefault();

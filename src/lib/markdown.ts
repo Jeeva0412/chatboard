@@ -33,12 +33,37 @@ marked.use({
 });
 
 const purifier = browser ? createDOMPurify(window) : null;
+const markdownCache = new Map<string, string>();
+const markdownCacheLimit = 300;
+
+const getCachedMarkdown = (content: string) => {
+	const cached = markdownCache.get(content);
+	if (!cached) {
+		return null;
+	}
+
+	markdownCache.delete(content);
+	markdownCache.set(content, cached);
+	return cached;
+};
+
+const setCachedMarkdown = (content: string, rendered: string) => {
+	if (markdownCache.has(content)) {
+		markdownCache.delete(content);
+	}
+
+	markdownCache.set(content, rendered);
+
+	if (markdownCache.size > markdownCacheLimit) {
+		const oldestKey = markdownCache.keys().next().value as string | undefined;
+		if (oldestKey) {
+			markdownCache.delete(oldestKey);
+		}
+	}
+};
 
 const normalizeMarkdown = (content: string) => {
-	const normalized = content
-		.split('\n')
-		.map((line) => line.replace(/^(#{1,6})([^\s#])/, '$1 $2'))
-		.join('\n');
+	const normalized = content.replace(/^(#{1,6})([^\s#])/gm, '$1 $2');
 
 	const withHighlights = normalized.replace(/==([^=\n][\s\S]*?)==/g, '<mark>$1</mark>');
 	const withUnderline = withHighlights.replace(/\+\+([^+\n][\s\S]*?)\+\+/g, '<u>$1</u>');
@@ -72,10 +97,18 @@ export const renderMarkdown = (content: string) => {
 		return content;
 	}
 
+	const cached = getCachedMarkdown(content);
+	if (cached) {
+		return cached;
+	}
+
 	const normalized = normalizeMarkdown(content);
 	const html = marked.parse(normalized, { async: false });
-	return purifier.sanitize(html, {
+	const sanitized = purifier.sanitize(html, {
 		USE_PROFILES: { html: true },
 		ADD_ATTR: ['target', 'rel', 'class']
 	});
+
+	setCachedMarkdown(content, sanitized);
+	return sanitized;
 };

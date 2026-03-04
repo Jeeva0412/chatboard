@@ -11,6 +11,9 @@ alter table public.chat_messages alter column sender_id set not null;
 
 alter table public.chat_messages enable row level security;
 
+create index if not exists idx_chat_messages_created_id_desc
+on public.chat_messages (created_at desc, id desc);
+
 drop policy if exists "allow anon read messages" on public.chat_messages;
 create policy "allow anon read messages"
 on public.chat_messages
@@ -27,6 +30,8 @@ with check (true);
 create or replace function public.enforce_message_cap()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
 	delete from public.chat_messages
@@ -40,6 +45,8 @@ begin
 	return null;
 end;
 $$;
+
+revoke all on function public.enforce_message_cap() from public;
 
 drop trigger if exists trg_enforce_message_cap on public.chat_messages;
 create trigger trg_enforce_message_cap

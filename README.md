@@ -1,65 +1,79 @@
-# Ephemeral Chatboard
+# Chatboard
 
-Realtime markdown chatboard built with SvelteKit, Tailwind CSS, Supabase, and Cloudflare Pages adapter.
+A small web chat app built with SvelteKit and Supabase.
+You can send messages, see new messages quickly, and use basic Markdown in messages.
 
-## Stack
+## What this project does
+
+- Shows a shared chat page in the browser
+- Loads the latest 40 messages from the database
+- Sends new messages to other users through Supabase Realtime
+- Saves each message in Supabase
+- Keeps only the newest 40 messages in the table
+
+## Tech used
 
 - SvelteKit + TypeScript
-- Tailwind CSS (flat brutalist UI rules in `src/app.css`)
-- Supabase (Broadcast + PostgreSQL)
-- `marked` + `DOMPurify` (safe markdown rendering)
-- Cloudflare adapter (`@sveltejs/adapter-cloudflare`)
+- Tailwind CSS
+- Supabase (database + realtime)
+- `marked` + `DOMPurify` for safe Markdown output
 
-## Local setup
+## Before you start
 
-1. Install dependencies:
+You need:
+
+- Node.js 18+
+- A Supabase project
+
+Set these environment variables:
+
+- `PUBLIC_SUPABASE_URL`
+- `PUBLIC_SUPABASE_ANON_KEY`
+
+## Run locally
+
+1. Install packages:
 
 ```bash
 npm install
 ```
 
-2. Copy env file and fill values:
+2. Add your Supabase environment values.
 
-```bash
-cp .env.example .env
-```
-
-Required keys:
-
-- `PUBLIC_SUPABASE_URL`
-- `PUBLIC_SUPABASE_ANON_KEY`
-
-3. Start dev server:
+3. Start the app:
 
 ```bash
 npm run dev
 ```
 
-## Supabase SQL setup
+4. Open the local URL shown in the terminal.
 
-Run `supabase/schema.sql` in Supabase SQL editor. It creates:
+## Set up Supabase table
 
-- `public.chat_messages` table
-- RLS policies for anonymous read and insert
-- `enforce_message_cap()` trigger function
-- `AFTER INSERT` trigger that retains only the newest 40 rows
+Run the SQL in `supabase/schema.sql` inside the Supabase SQL editor.
 
-If your table already existed before this update, run `supabase/schema.sql` again to add `sender_id` for per-session left/right message ownership.
+This script:
 
-## Realtime flow
+- creates `chat_messages` if it does not exist
+- enables read and insert rules for anonymous users
+- adds a trigger that removes old rows
+- keeps only 40 newest messages
 
-On submit, the client:
+## Useful scripts
 
-1. Broadcasts message instantly to `chatboard-room` channel.
-2. Renders incoming payload immediately on subscribers.
-3. Inserts message asynchronously into `chat_messages`.
+- `npm run dev` - start local development server
+- `npm run build` - build for production
+- `npm run preview` - preview the production build
+- `npm run check` - type and Svelte checks
 
-Initial page load fetches the most recent 40 rows from the table.
+## Project structure
 
-## Deployment
+- `src/routes/+page.svelte` - main chat UI and realtime logic
+- `src/lib/supabase.ts` - Supabase client setup
+- `src/lib/markdown.ts` - Markdown parsing and sanitizing
+- `supabase/schema.sql` - database table, policies, and message cap trigger
 
-Project is configured for Cloudflare Pages builds via SvelteKit Cloudflare adapter.
+## Notes
 
-```bash
-npm run build
-```
+- This app is client-rendered (`src/routes/+page.ts` sets `ssr = false`).
+- Press `Ctrl + Enter` in the message box to send.
