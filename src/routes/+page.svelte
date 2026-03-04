@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { onDestroy, onMount } from 'svelte';
+	import { afterUpdate, onDestroy, onMount } from 'svelte';
 	import { tick } from 'svelte';
 	import type { RealtimeChannel } from '@supabase/supabase-js';
 	import { renderMarkdown } from '$lib/markdown';
@@ -53,12 +53,18 @@
 	let error = '';
 	let sending = false;
 	let isRealtimeReady = false;
+	let isConnectingRealtime = false;
+	let realtimeWarning = '';
 	let messagesContainer: HTMLDivElement | null = null;
+	let messagesEndAnchor: HTMLDivElement | null = null;
 	let composer: HTMLTextAreaElement | null = null;
 	let resizeRafId: number | null = null;
-    const seenMessageIds = new Set<string>();
+	const seenMessageIds = new Set<string>();
+	let pendingAutoScroll = false;
+	let lastDraftValue = '';
 
 	const maxComposerHeight = 176;
+	const minComposerHeight = 44;
 	const nearBottomThreshold = 72;
 
 	let channel: RealtimeChannel | null = null;
@@ -69,14 +75,11 @@
 		}
 
 		messagesContainer.scrollTop = messagesContainer.scrollHeight;
+		messagesEndAnchor?.scrollIntoView({ block: 'end' });
 	};
 
-	const scrollMessagesToBottomSoon = () => {
-		void tick().then(() => {
-			requestAnimationFrame(() => {
-				scrollMessagesToBottom();
-			});
-		});
+	const requestAutoScroll = () => {
+		pendingAutoScroll = true;
 	};
 
 	const isNearBottom = () => {
@@ -94,10 +97,21 @@
 			return;
 		}
 
-		composer.style.height = 'auto';
-		const nextHeight = Math.min(composer.scrollHeight, maxComposerHeight);
+		composer.style.height = '0px';
+		const nextHeight = Math.min(Math.max(composer.scrollHeight, minComposerHeight), maxComposerHeight);
 		composer.style.height = `${nextHeight}px`;
 		composer.style.overflowY = composer.scrollHeight > maxComposerHeight ? 'auto' : 'hidden';
+		composer.scrollTop = composer.scrollHeight;
+	};
+
+	const resetComposerSize = () => {
+		if (!composer) {
+			return;
+		}
+
+		composer.style.height = `${minComposerHeight}px`;
+		composer.style.overflowY = 'hidden';
+		composer.scrollTop = 0;
 	};
 
 	const scheduleComposerResize = () => {
@@ -109,6 +123,12 @@
 			resizeComposer();
 			resizeRafId = null;
 		});
+	};
+
+	const reconnectRealtime = async () => {
+		realtimeWarning = '';
+		error = '';
+		await connectRealtime();
 	};
 
 	const toUiMessage = (message: {
@@ -147,7 +167,7 @@
 		const shouldStickToBottom = isNearBottom();
 		messages = messages.length >= 40 ? [...messages.slice(-39), message] : [...messages, message];
 		if (message.senderId === sessionUserId || shouldStickToBottom) {
-			scrollMessagesToBottomSoon();
+			requestAutoScroll();
 		}
 	};
 
@@ -187,13 +207,20 @@
 		}
 
 		loading = false;
-		scrollMessagesToBottomSoon();
+		requestAutoScroll();
 	};
 
 	const connectRealtime = async () => {
 		if (!supabase) {
 			return;
 		}
+
+		if (channel) {
+			void supabase.removeChannel(channel);
+			channel = null;
+		}
+
+		isConnectingRealtime = true;
 
 		channel = supabase
 			.channel('chatboard-room', {
@@ -218,12 +245,15 @@
 		channel.subscribe((status) => {
 			if (status === 'SUBSCRIBED') {
 				isRealtimeReady = true;
+				isConnectingRealtime = false;
+				realtimeWarning = '';
 				return;
 			}
 
 			isRealtimeReady = false;
+			isConnectingRealtime = false;
 			if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-				error = 'Realtime channel could not connect.';
+				realtimeWarning = 'Realtime channel is not connected.';
 			}
 		});
 	};
@@ -231,6 +261,9 @@
 	const submitMessage = async () => {
 		const content = draft.trim();
 		if (!content || !supabase || !channel || !isRealtimeReady) {
+			if (!isRealtimeReady) {
+				realtimeWarning = 'Realtime channel is not connected.';
+			}
 			return;
 		}
 
@@ -251,7 +284,7 @@
 		});
 
 		if (broadcastError !== 'ok') {
-			error = `Failed to broadcast message (${broadcastError}).`;
+			realtimeWarning = `Realtime send failed (${broadcastError}).`;
 			sending = false;
 			return;
 		}
@@ -271,8 +304,9 @@
 
 		draft = '';
 		sending = false;
-		resizeComposer();
-		scrollMessagesToBottomSoon();
+		await tick();
+		resetComposerSize();
+		requestAutoScroll();
 	};
 
 	const copyMessage = async (content: string) => {
@@ -283,35 +317,115 @@
 		}
 	};
 
+	const isTextInputContext = (element: Element | null) => {
+		if (!(element instanceof HTMLElement)) {
+			return false;
+		}
+
+		const tagName = element.tagName.toLowerCase();
+		if (tagName === 'textarea' || tagName === 'select') {
+			return true;
+		}
+
+		if (tagName === 'input') {
+			const input = element as HTMLInputElement;
+			const textTypes = new Set(['text', 'search', 'email', 'url', 'password', 'tel', 'number']);
+			return textTypes.has((input.type || 'text').toLowerCase());
+		}
+
+		return element.isContentEditable;
+	};
+
+	const focusComposer = () => {
+		if (!composer) {
+			return;
+		}
+
+		composer.focus();
+		const end = composer.value.length;
+		composer.setSelectionRange(end, end);
+	};
+
+	const handleGlobalKeydown = (event: KeyboardEvent) => {
+		if (event.ctrlKey || event.metaKey || event.altKey) {
+			return;
+		}
+
+		if (isTextInputContext(document.activeElement)) {
+			return;
+		}
+
+		const key = event.key.toLowerCase();
+		if (event.key === 'Enter' || key === 't') {
+			event.preventDefault();
+			focusComposer();
+		}
+	};
+
 	onMount(async () => {
+		resetComposerSize();
+		window.addEventListener('keydown', handleGlobalKeydown);
 		resizeComposer();
 		await loadMessages();
 		await connectRealtime();
 	});
 
+	afterUpdate(() => {
+		if (draft !== lastDraftValue) {
+			lastDraftValue = draft;
+			scheduleComposerResize();
+		}
+
+		if (!pendingAutoScroll) {
+			return;
+		}
+
+		pendingAutoScroll = false;
+		requestAnimationFrame(() => {
+			scrollMessagesToBottom();
+		});
+	});
+
 	onDestroy(() => {
+		window.removeEventListener('keydown', handleGlobalKeydown);
+
 		if (resizeRafId !== null) {
 			cancelAnimationFrame(resizeRafId);
 		}
 
 		if (channel && supabase) {
 			isRealtimeReady = false;
+			isConnectingRealtime = false;
 			void supabase.removeChannel(channel);
 		}
 	});
 </script>
 
-<div class="sketch-pattern flex min-h-screen flex-col text-[#111111]">
-	<main class="mx-auto flex w-full max-w-6xl flex-1 flex-col overflow-hidden px-6 py-6">
+<div class="sketch-pattern flex h-[100dvh] overflow-hidden text-[#111111]">
+	<main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-hidden px-6 py-6">
 		{#if !hasSupabaseConfig}
 			<section class="sketchy-border bg-[#fff0f0] p-4 text-2xl">
 				Set PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY to start realtime chat.
 			</section>
 		{:else}
-			{#if !isRealtimeReady}
+			{#if isConnectingRealtime && !isRealtimeReady}
 				<p class="mb-3 text-sm tracking-[0.25em] opacity-70" aria-label="Connecting">...</p>
 			{/if}
-			<div class="chat-stream flex-1 space-y-6 overflow-y-auto pb-4" bind:this={messagesContainer}>
+			{#if realtimeWarning}
+				<blockquote class="realtime-warning mb-3">
+					<p>{realtimeWarning}</p>
+					<button
+						type="button"
+						class="retry-btn"
+						onclick={() => {
+							void reconnectRealtime();
+						}}
+					>
+						Retry
+					</button>
+				</blockquote>
+			{/if}
+			<div class="chat-stream min-h-0 flex-1 space-y-6 overflow-y-auto pb-4" bind:this={messagesContainer}>
 				{#if loading}
 					<p class="sketchy-border bg-white px-4 py-2 text-base">Loading messages…</p>
 				{:else if messages.length === 0}
@@ -340,13 +454,14 @@
 						</div>
 					{/each}
 				{/if}
+				<div bind:this={messagesEndAnchor} aria-hidden="true" class="h-px w-full"></div>
 			</div>
 		{/if}
 	</main>
 
-	<footer class="sketchy-border-top bg-[#f4f4f4] px-6 py-4">
+	<footer class="sketchy-border-top sticky bottom-0 z-10 shrink-0 bg-[#f4f4f4] px-6 py-4">
 		<form
-			class="mx-auto flex w-full max-w-6xl items-center gap-3"
+			class="mx-auto flex w-full max-w-6xl items-end gap-3"
 			onsubmit={(event) => {
 				event.preventDefault();
 				void submitMessage();
