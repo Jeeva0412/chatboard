@@ -63,34 +63,11 @@ const setCachedMarkdown = (content: string, rendered: string) => {
 };
 
 const normalizeMarkdown = (content: string) => {
-	const normalized = content.replace(/^(#{1,6})([^\s#])/gm, '$1 $2');
-
-	const withHighlights = normalized.replace(/==([^=\n][\s\S]*?)==/g, '<mark>$1</mark>');
+	const withHighlights = content.replace(/==([^=\n][\s\S]*?)==/g, '<mark>$1</mark>');
 	const withUnderline = withHighlights.replace(/\+\+([^+\n][\s\S]*?)\+\+/g, '<u>$1</u>');
-
-	const withGithubAdmonitions = withUnderline.replace(
-		/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n((?:>.*(?:\n|$))*)/gim,
-		(_, type: string, body: string) => {
-			const label = type.toLowerCase();
-			const message = body
-				.split('\n')
-				.map((line: string) => line.replace(/^>\s?/, ''))
-				.join('\n')
-				.trim();
-
-			return `<div class="md-admonition md-admonition-${label}"><p class="md-admonition-title">${type}</p>\n${message}\n</div>`;
-		}
-	);
-
-	return withGithubAdmonitions.replace(
-		/^:::(note|tip|important|warning|caution)\s*\n([\s\S]*?)\n:::/gim,
-		(_, type: string, body: string) => {
-			const upper = type.toUpperCase();
-			const label = type.toLowerCase();
-			return `<div class="md-admonition md-admonition-${label}"><p class="md-admonition-title">${upper}</p>\n${body.trim()}\n</div>`;
-		}
-	);
+	return withUnderline;
 };
+
 
 export const renderMarkdown = (content: string) => {
 	if (!browser || !purifier) {

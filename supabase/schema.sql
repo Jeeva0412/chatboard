@@ -14,6 +14,9 @@ alter table public.chat_messages enable row level security;
 create index if not exists idx_chat_messages_created_id_desc
 on public.chat_messages (created_at desc, id desc);
 
+alter table public.chat_messages add column if not exists is_pinned boolean not null default false;
+create index if not exists idx_chat_messages_is_pinned on public.chat_messages (is_pinned) where is_pinned = true;
+
 drop policy if exists "allow anon read messages" on public.chat_messages;
 create policy "allow anon read messages"
 on public.chat_messages
@@ -27,6 +30,14 @@ for insert
 to anon
 with check (true);
 
+drop policy if exists "allow anon update messages" on public.chat_messages;
+create policy "allow anon update messages"
+on public.chat_messages
+for update
+to anon
+using (true)
+with check (true);
+
 create or replace function public.enforce_message_cap()
 returns trigger
 language plpgsql
@@ -38,6 +49,7 @@ begin
 	where id in (
 		select id
 		from public.chat_messages
+		where is_pinned = false
 		order by created_at desc, id desc
 		offset 40
 	);
@@ -58,6 +70,7 @@ delete from public.chat_messages
 where id in (
 	select id
 	from public.chat_messages
+	where is_pinned = false
 	order by created_at desc, id desc
 	offset 40
 );
