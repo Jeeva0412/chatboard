@@ -602,9 +602,7 @@
 					class="sketchy-border bg-[#FFFDE7] shadow-sm px-4 py-1.5 text-sm font-medium hover:bg-[#FAF9F6] flex items-center gap-2 rounded-full"
 					onclick={() => (isPinDropdownOpen = true)}
 				>
-					📌 <span class="text-xs"
-						>{pinnedMessages.length} Pinned</span
-					>
+					<span class="text-xs">{pinnedMessages.length} Pinned</span>
 				</button>
 			</div>
 		{/if}
@@ -734,8 +732,8 @@
 					}}
 				>
 					{contextMenu.message.isPinned
-						? "📍 Unpin Message"
-						: "📌 Pin Message"}
+						? "Unpin Message"
+						: "Pin Message"}
 				</button>
 				<button
 					class="text-left px-4 py-2 text-sm hover:bg-[#FFFDE7] transition-colors"
@@ -745,7 +743,7 @@
 						}
 					}}
 				>
-					📋 Copy Text
+					Copy Text
 				</button>
 				{#if isAdmin}
 					<button
@@ -764,7 +762,7 @@
 							}
 						}}
 					>
-						🗑️ Delete Message
+						Delete Message
 					</button>
 				{/if}
 			</div>

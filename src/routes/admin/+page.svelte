@@ -229,7 +229,7 @@
 												? "Unpin message"
 												: "Pin message"}
 										>
-											{msg.is_pinned ? "📌" : "—"}
+											{msg.is_pinned ? "Yes" : "—"}
 										</button>
 									</td>
 									<td class="p-3 text-right">
